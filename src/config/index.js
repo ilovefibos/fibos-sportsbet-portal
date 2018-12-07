@@ -2,7 +2,9 @@ import { networks } from './network';
 
 export const appScatterName = 'FIOBS SPORTSBET';
 
-export const network = networks.fibosrocks;
+export const network = networks.testnet;
+
+export const contractName = 'aaaasportbet'
 
 export const i18n = [
   {

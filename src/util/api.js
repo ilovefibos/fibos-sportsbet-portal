@@ -1,25 +1,16 @@
 
 import * as config from '@/config';
 import PriceFormatter from './priceFormatter';
-import ScatterJS from './scatterjs';
-import Fibos from 'fibos.js';
+import store from '@/store'
+
 // api https://get-scatter.com/docs/api-create-transaction
 
 // @trick: use function to lazy eval Scatter eos, in order to avoid no ID problem.
 
-const fibos = () => ScatterJS.scatter.fibos(config.network, Fibos, { expireInSeconds: 60 });
-const currentEOSAccount = () => ScatterJS.scatter.identity && ScatterJS.scatter.identity.accounts.find(x => x.blockchain === 'fibos');
-const fibosReader = Fibos({
-  broadcast: false,
-  sign: false,
-  chainId: config.network.chainId,
-  keyPrefix: 'FO',
-  httpEndpoint: `${config.network.protocol}://${config.network.host}:${config.network.port}`,
-});
 
 const API = {
   async getEvents() {
-    const { rows } = await fibos().getTableRows({
+    const { rows } = await store.state.scatterReader.getTableRows({
       json: true,
       code: config.contractName,
       scope: config.contractName,
@@ -29,7 +20,7 @@ const API = {
     return rows;
   },
   async getOffers() {
-    const { rows } = await fibosReader.getTableRows({
+    const { rows } = await store.state.scatterReader.getTableRows({
       json: true,
       code: config.contractName,
       scope: config.contractName,
@@ -38,17 +29,47 @@ const API = {
     });
     return rows;
   },
-  connectScatterAsync() {
-    return ScatterJS.scatter.connect(config.appScatterName, { initTimeout: 2000 });
+  async makeOffer(eventId, stake, betChoose, makerOdds) {
+    const transaction = [
+      {
+        account: config.contractName,
+        name: 'offerbet',
+        data: {
+          event_id: eventId,
+          maker:  store.state.scatterAccount.name,
+          stake:  PriceFormatter.formatQuantity(stake),
+          bet_choose: betChoose,
+          maker_odds:makerOdds,
+        },
+      },
+    ]
+    const actions = transaction.map(tx => ({
+      ...tx,
+      authorization: [{ actor:store.state.scatterAccount.name, permission:store.state.scatterAccount.authority }],
+    }));
+    console.log(`Attempting to send tx to ironman: ${JSON.stringify(actions, null, 2)}`);
+    return store.state.scatterWriter.transaction({ actions });
   },
-  loginScatterAsync() {
-    const requiredFields = { accounts: [config.network] };
-    return ScatterJS.scatter.getIdentity(requiredFields);
+  async getMyOffers(accountName) {
+    const { rows } = await store.state.scatterReader.getTableRows({
+      json: true,
+      code: config.contractName,
+      scope: accountName,
+      table: 'offers',
+      limit: 1024,
+    });
+    return rows;
   },
-  logoutScatterAsync() {
-    return ScatterJS.scatter.forgetIdentity();
+  async getMyBets(accountName) {
+    const { rows } = await store.state.scatterReader.getTableRows({
+      json: true,
+      code: config.contractName,
+      scope: accountName,
+      table: 'bets',
+      limit: 1024,
+    });
+    return rows;
   },
 };
 
 export default API;
-export { fibos, currentEOSAccount };

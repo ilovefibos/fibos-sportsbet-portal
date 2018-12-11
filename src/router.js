@@ -16,11 +16,9 @@ const router = new Router({
 });
 
 router.beforeEach((to, from, next) => {
-  store.commit('ui/setGlobalSpinnerVisible', true);
   next();
 });
 router.afterEach(() => {
-  store.commit('ui/setGlobalSpinnerVisible', false);
 });
 
 export default router;

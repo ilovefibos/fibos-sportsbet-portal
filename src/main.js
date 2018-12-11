@@ -27,5 +27,3 @@ new Vue({
   i18n,
   render: h => h(App),
 }).$mount('#app');
-
-document.querySelector('#load').remove();

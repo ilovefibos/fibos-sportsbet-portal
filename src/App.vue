@@ -13,7 +13,7 @@
                 </v-list-tile>
             </v-list>
         </v-navigation-drawer>
-        <v-toolbar>
+        <v-toolbar app>
             <v-toolbar-side-icon @click.native.stop ="drawerToggle = !drawerToggle"></v-toolbar-side-icon>
             <v-toolbar-title>
 
@@ -28,10 +28,12 @@
                 </v-btn>
             </v-toolbar-items>
         </v-toolbar>
-        <main>
-            <router-view></router-view>
-        </main>
-        <v-footer height="auto" app>
+        <v-content>
+            <v-container>
+                <router-view></router-view>
+            </v-container>
+        </v-content>
+        <v-footer app>
             <v-card-text class="white--text">
                     {{$t('contract_creator')}}
                 </v-card-text>
@@ -45,12 +47,10 @@
 <script>
 import { mapActions, mapState } from 'vuex'
 import API, { eos } from '@/util/api'
-import Loading from '@/components/Loading.vue'
 
 export default {
   name: 'App',
   components: {
-    Loading,
   },
   data: () => ({
     drawerToggle: true,

@@ -12,16 +12,29 @@ export default new Vuex.Store({
     isScatterConnected: false,
     scatterAccount: null,
     isScatterLoggingIn: false,
-    isLoadingData: false,
     scatterReader: null,
-    scatterWriter: null
+    scatterWriter: null,
+    activeAuthority: null,
+    loadingActiveAuthority: false,
+  },
+  getters: {
+    activeAuthorityContractEntry(state) {
+      return !state.activeAuthority
+        ? undefined
+        : state.activeAuthority.accounts.find(a =>
+          a.permission.actor === config.contractName &&
+            a.permission.permission === 'eosio.code');
+    },
+    hasGrantedPermission(state, getters) {
+      const contractEntry = getters.activeAuthorityContractEntry;
+      return (
+        contractEntry && contractEntry.weight >= state.activeAuthority.threshold
+      );
+    }
   },
   mutations: {
     setIsScatterLoggingIn (state, isScatterLoggingIn) {
       state.isScatterLoggingIn = isScatterLoggingIn
-    },
-    setIsLoadingData (state, isLoadingData) {
-      state.isLoadingData = isLoadingData
     },
     setIsScatterConnected (state, isScatterConnected) {
       state.isScatterConnected = isScatterConnected
@@ -34,6 +47,12 @@ export default new Vuex.Store({
     },
     setScatterAccount (state, account) {
       state.scatterAccount = account
+    },
+    setActiveAuthority(state, authority) {
+      state.activeAuthority = authority;
+    },
+    setLoadingActiveAuthority(state, loading) {
+      state.loadingActiveAuthority = loading;
     },
   },
   actions: {
@@ -54,10 +73,85 @@ export default new Vuex.Store({
         const id = await ScatterJS.scatter.getIdentity({ accounts: [config.network] });
         const match = id && id.accounts.find(x => x.blockchain === 'fibos');
         if (match) {
-          commit('setScatterAccount', id)
-          const fibosWriter = ScatterJS.scatter.fibos(config.network, Fibos, { expireInSeconds: 60 });
+          commit('setScatterAccount', match)
+          const networkOptions = {
+            broadcast: true,
+            sign: true,
+            chainId: config.network.chainId,
+            keyPrefix: 'FO',
+            expireInSeconds: 60
+          };
+          const fibosWriter = ScatterJS.scatter.fibos(config.network, Fibos, networkOptions);
           commit('setScatterWriter', fibosWriter)
+          await dispatch('loadActiveAuthority');
         }
+      }
+    },
+    async loadActiveAuthority({ state, commit }) {
+      commit('setLoadingActiveAuthority', true);
+      commit('setActiveAuthority', null);
+      const accountInfo = await state.scatterReader.getAccount({
+        account_name: state.scatterAccount.name
+      });
+      const authority = accountInfo.permissions.find(p => p.perm_name === 'active').required_auth;
+      commit('setActiveAuthority', authority);
+      commit('setLoadingActiveAuthority', false);
+    },
+    async grantPermission({ state, dispatch, getters }) {
+      // Ensure we have a fresh copy
+      await dispatch('loadActiveAuthority');
+      const authority = { ...state.activeAuthority };
+      const contractEntry = getters.activeAuthorityContractEntry;
+
+      if (contractEntry) {
+        authority.accounts = [
+          ...authority.accounts.filter(a => a !== contractEntry),
+          {
+            ...contractEntry,
+            weight: authority.threshold
+          }
+        ];
+      } else {
+        authority.accounts = [
+          ...authority.accounts,
+          {
+            permission: {
+              actor: config.contractName,
+              permission: 'eosio.code'
+            },
+            weight: authority.threshold
+          }
+        ];
+      }
+
+      try {
+        await API.updateAuth(
+          state.scatterAccount.name,
+          'active',
+          'owner',
+          authority
+        );
+        await dispatch('loadActiveAuthority');
+      } catch (error) {
+        Vue.toasted.error(`Failed to Update Auth: ${error.message}.`, {duration: 3000})
+      }
+    },
+    async removePermission({ state, dispatch, getters }) {
+      const authority = {
+        ...state.activeAuthority,
+        accounts: state.activeAuthority.accounts.filter(a => a !== getters.activeAuthorityContractEntry)
+      };
+
+      try {
+        await API.updateAuth(
+          state.scatterAccount.name,
+          'active',
+          'owner',
+          authority
+        );
+        await dispatch('loadActiveAuthority');
+      } catch (error) {
+        Vue.toasted.error(`Failed to Update Auth: ${error.message}.`, {duration: 3000})
       }
     },
     async loginScatterAsync ({commit, dispatch}) {
@@ -69,10 +163,10 @@ export default new Vuex.Store({
           return
         }
         const account = identity.accounts.find(x => x.blockchain === 'fibos')
-        console.log(account)
         commit('setScatterAccount', account)
         const fibosWriter = ScatterJS.scatter.fibos(config.network, Fibos, { expireInSeconds: 60 });
         commit('setScatterWriter', fibosWriter)
+        await dispatch('loadActiveAuthority');
         Vue.toasted.success('You successfully logged in Ironman!', {duration: 3000})
       } catch (err) {
         console.error('Failed to login Ironman', err)

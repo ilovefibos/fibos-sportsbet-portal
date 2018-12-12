@@ -19,6 +19,10 @@
 
             </v-toolbar-title>
             <v-spacer></v-spacer>
+            <v-toolbar-items v-if="isScatterConnected && scatterAccount && !loadingActiveAuthority">
+                <v-btn v-if="!hasGrantedPermission" flat @click="grantPermission">Grant Permission</v-btn>
+                <v-btn v-else flat @click="removePermission">Remove Permission</v-btn>
+            </v-toolbar-items>
             <v-toolbar-items v-if="!scatterAccount">
                 <v-btn flat @click="loginScatterAsync">Login
                 </v-btn>
@@ -45,7 +49,7 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex'
+import { mapActions, mapState, mapGetters } from 'vuex'
 import API, { eos } from '@/util/api'
 
 export default {
@@ -61,10 +65,11 @@ export default {
 
   },
   methods: {
-    ...mapActions(['connectScatterAsync', 'loginScatterAsync', 'logoutScatterAsync']),
+    ...mapActions(['connectScatterAsync', 'loginScatterAsync', 'logoutScatterAsync', 'grantPermission', 'removePermission']),
   },
   computed: {
-    ...mapState(['isScatterConnected', 'scatterAccount', 'isScatterLoggingIn']),
+    ...mapState(['isScatterConnected', 'scatterAccount', 'isScatterLoggingIn','loadingActiveAuthority']),
+    ...mapGetters(['hasGrantedPermission'])
   },
   mounted () {
     this.connectScatterAsync()
@@ -73,3 +78,4 @@ export default {
   },
 }
 </script>
+

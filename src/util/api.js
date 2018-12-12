@@ -43,12 +43,22 @@ const API = {
         },
       },
     ]
-    const actions = transaction.map(tx => ({
-      ...tx,
-      authorization: [{ actor:store.state.scatterAccount.name, permission:store.state.scatterAccount.authority }],
-    }));
-    console.log(`Attempting to send tx to ironman: ${JSON.stringify(actions, null, 2)}`);
-    return store.state.scatterWriter.transaction({ actions });
+    return this.pushTransaction(transaction);
+  },
+  async updateAuth(account, permission, parent, auth) {
+    const transaction = [
+      {
+        account: 'eosio',
+        name: 'updateauth',
+        data: {
+          account,
+          permission,
+          parent,
+          auth,
+        },
+      }
+    ]
+    return this.pushTransaction(transaction);
   },
   async getMyOffers(accountName) {
     const { rows } = await store.state.scatterReader.getTableRows({
@@ -70,6 +80,17 @@ const API = {
     });
     return rows;
   },
+  async pushTransaction(transaction) {
+    if (!store.state.scatterAccount) {
+      throw Error('Require network connection and identity')
+    }
+    const actions = transaction.map(tx => ({
+      ...tx,
+      authorization: [{ actor:store.state.scatterAccount.name, permission:store.state.scatterAccount.authority }],
+    }));
+    console.log(`Attempting to send tx to ironman: ${JSON.stringify(actions, null, 2)}`);
+    return store.state.scatterWriter.transaction({ actions });
+  }
 };
 
 export default API;
